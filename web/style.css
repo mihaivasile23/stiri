@@ -62,6 +62,32 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fresh {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #FFFFFF;
+  font: 600 0.8rem/1 var(--sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fresh[hidden] { display: none; }
+
+.fresh:focus-visible, .more:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .tabs {
   display: flex;
   gap: 22px;
@@ -269,6 +295,31 @@ main { padding: 8px 0 24px; outline: none; }
 }
 
 .card.is-read { opacity: 0.5; }
+
+.more {
+  scroll-snap-align: start;
+  appearance: none;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  border: 1px dashed #B9C4C1;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 0.92rem/1.4 var(--sans);
+  text-align: center;
+  cursor: pointer;
+}
+
+.more:hover { color: var(--ink); border-color: var(--muted); }
+
+.more-inline {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 10px 16px;
+}
+
+.empty p { margin: 0; }
 .card.is-read h3 { font-weight: 430; }
 
 /* ---------- notices & footer ---------- */

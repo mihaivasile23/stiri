@@ -1,6 +1,6 @@
 // Știri: makes the site installable and lets it open offline with the last headlines.
 // Always tries the network first, so you see fresh content whenever you're online.
-const CACHE = "stiri-v1";
+const CACHE = "stiri-v2";
 const SHELL = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {

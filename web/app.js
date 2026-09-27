@@ -1,16 +1,21 @@
 (() => {
   "use strict";
 
-  const READ_KEY = "stiri.read";
+  const SEEN_KEY = "stiri.seen";   // headlines that were on screen
+  const READ_KEY = "stiri.read";   // headlines you opened
   const TAB_KEY = "stiri.tab";
-  const READ_KEEP_DAYS = 21;
+  const KEEP_DAYS = 10;            // longer than any lane looks back
+  const SEEN_AFTER_MS = 1000;      // how long a card must be fully visible
+  const NEW_VISIT_AFTER_MS = 5 * 60000;
 
   const $ = (id) => document.getElementById(id);
   const main = $("main");
   const tabsEl = $("tabs");
   const updatedEl = $("updated");
+  const freshBtn = $("fresh");
 
   let data = null;
+  let pending = null;
   let current = 0;
   let lastFetch = 0;
 
@@ -28,19 +33,33 @@
     },
   };
 
-  let readMap = store.get(READ_KEY, {});
-  (function pruneRead() {
-    const cutoff = Date.now() - READ_KEEP_DAYS * 864e5;
-    let changed = false;
-    for (const id in readMap) if (readMap[id] < cutoff) { delete readMap[id]; changed = true; }
-    if (changed) store.set(READ_KEY, readMap);
-  })();
+  function loadMap(key) {
+    const map = store.get(key, {});
+    const cutoff = Date.now() - KEEP_DAYS * 864e5;
+    for (const id in map) if (map[id] < cutoff) delete map[id];
+    return map;
+  }
 
-  const isRead = (id) => Object.prototype.hasOwnProperty.call(readMap, id);
-  function markRead(id) {
-    if (isRead(id)) return;
-    readMap[id] = Date.now();
+  const seenMap = loadMap(SEEN_KEY);
+  const readMap = loadMap(READ_KEY);
+  const has = (map, id) => Object.prototype.hasOwnProperty.call(map, id);
+
+  let saveTimer = null;
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 400);
+  }
+  function saveNow() {
+    clearTimeout(saveTimer);
+    store.set(SEEN_KEY, seenMap);
     store.set(READ_KEY, readMap);
+  }
+  window.addEventListener("pagehide", saveNow);
+
+  // What was already seen when this visit started stays hidden until the next visit.
+  let hidden = new Set();
+  function startVisit() {
+    hidden = new Set([...Object.keys(seenMap), ...Object.keys(readMap)]);
   }
 
   // ---------------------------------------------------------------- words
@@ -91,6 +110,36 @@
     return node;
   }
 
+  // ---------------------------------------------------------------- seen tracking
+
+  const onSeen = new WeakMap();
+  const timers = new Map();
+  const observer = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          const card = e.target;
+          if (e.isIntersecting && e.intersectionRatio >= 0.9) {
+            if (!timers.has(card)) {
+              timers.set(card, setTimeout(() => {
+                timers.delete(card);
+                observer.unobserve(card);
+                if (document.visibilityState === "visible") onSeen.get(card)?.();
+              }, SEEN_AFTER_MS));
+            }
+          } else if (timers.has(card)) {
+            clearTimeout(timers.get(card));
+            timers.delete(card);
+          }
+        }
+      }, { threshold: [0, 0.9] })
+    : null;
+
+  function resetObserver() {
+    timers.forEach(clearTimeout);
+    timers.clear();
+    observer?.disconnect();
+  }
+
   // ---------------------------------------------------------------- render
 
   function renderTabs() {
@@ -122,13 +171,13 @@
     return t;
   }
 
-  function card(item, laneState) {
+  function card(item, state, { revealed = false } = {}) {
     const href = safeUrl(item.link);
     const a = el("a", "card");
     if (href) a.href = href;
     a.target = "_blank";
     a.rel = "noopener";
-    if (isRead(item.id)) a.classList.add("is-read");
+    if (revealed || has(readMap, item.id)) a.classList.add("is-read");
 
     const fig = el("figure");
     const img = safeUrl(item.image);
@@ -159,16 +208,32 @@
     if (item.snippet) body.append(el("p", "snippet", item.snippet));
     a.append(fig, body);
 
-    const onOpen = () => {
-      if (isRead(item.id)) return;
-      markRead(item.id);
-      a.classList.add("is-read");
-      laneState.unread -= 1;
-      laneState.update();
+    const see = () => {
+      if (has(seenMap, item.id)) return;
+      seenMap[item.id] = Date.now();
+      saveSoon();
+      if (!revealed) { state.fresh -= 1; state.update(); }
     };
-    a.addEventListener("click", onOpen);
-    a.addEventListener("auxclick", (e) => { if (e.button === 1) onOpen(); });
+    const open = () => {
+      see();
+      if (!has(readMap, item.id)) { readMap[item.id] = Date.now(); saveNow(); }
+      a.classList.add("is-read");
+    };
+    a.addEventListener("click", open);
+    a.addEventListener("auxclick", (e) => { if (e.button === 1) open(); });
+
+    if (!revealed && !has(seenMap, item.id) && observer) {
+      onSeen.set(a, see);
+      observer.observe(a);
+    }
     return a;
+  }
+
+  function revealButton(n, onClick) {
+    const b = el("button", "more", n === 1 ? "Arată titlul deja văzut" : `Arată ${count(n, "", "titluri")} deja văzute`);
+    b.type = "button";
+    b.addEventListener("click", onClick);
+    return b;
   }
 
   function lane(laneData, index) {
@@ -180,47 +245,78 @@
     const h2 = el("h2", "lane-title", laneData.name);
     h2.id = titleId;
     const tools = el("div", "lane-tools");
-    const unread = el("span", "unread");
-    tools.append(unread);
+    const counter = el("span", "unread");
+    tools.append(counter);
     head.append(h2, tools);
     section.append(head);
 
+    const shown = laneData.items.filter((i) => !hidden.has(i.id));
+    const old = laneData.items.filter((i) => hidden.has(i.id));
+
     const state = {
-      unread: laneData.items.filter((i) => !isRead(i.id)).length,
+      fresh: shown.filter((i) => !has(seenMap, i.id)).length,
       update() {
-        unread.replaceChildren();
+        counter.replaceChildren();
         if (!laneData.items.length) return;
-        if (this.unread > 0) {
-          unread.append(el("strong", null, String(this.unread)), document.createTextNode(this.unread === 1 ? " necitit" : " necitite"));
+        if (this.fresh > 0) {
+          counter.append(el("strong", null, String(this.fresh)), document.createTextNode(this.fresh === 1 ? " nou" : " noi"));
         } else {
-          unread.textContent = "toate citite";
+          counter.textContent = "ai văzut tot";
         }
       },
     };
     state.update();
 
     if (!laneData.items.length) {
-      section.append(el("p", "empty", "Niciun titlu nou în perioada aleasă pentru această secțiune."));
+      section.append(el("p", "empty", "Niciun titlu în perioada aleasă pentru această secțiune."));
       return section;
     }
 
     const row = el("div", "row");
     row.setAttribute("aria-label", laneData.name);
-    for (const item of laneData.items) row.append(card(item, state));
+    const showOld = (btn) => {
+      const cards = old.map((i) => card(i, state, { revealed: true }));
+      btn.replaceWith(...cards);
+      cards[0]?.focus({ preventScroll: true });
+    };
 
-    for (const [label, dir, sym] of [["Înapoi", -1, "‹"], ["Înainte", 1, "›"]]) {
-      const b = el("button", "nudge", sym);
-      b.type = "button";
-      b.setAttribute("aria-label", `${label}: ${laneData.name}`);
-      b.addEventListener("click", () => row.scrollBy({ left: dir * row.clientWidth * 0.85 }));
-      tools.append(b);
+    if (!shown.length) {
+      const wrap = el("div", "empty");
+      wrap.append(el("p", null, "Nimic nou aici de la ultima vizită."));
+      const b = revealButton(old.length, () => {
+        wrap.replaceWith(row);
+        row.append(...old.map((i) => card(i, state, { revealed: true })));
+        addNudges();
+      });
+      b.classList.add("more-inline");
+      wrap.append(b);
+      section.append(wrap);
+    } else {
+      for (const item of shown) row.append(card(item, state));
+      if (old.length) {
+        const b = revealButton(old.length, () => showOld(b));
+        row.append(b);
+      }
+      section.append(row);
+      addNudges();
     }
 
-    section.append(row);
+    function addNudges() {
+      if (tools.querySelector(".nudge")) return;
+      for (const [label, dir, sym] of [["Înapoi", -1, "‹"], ["Înainte", 1, "›"]]) {
+        const b = el("button", "nudge", sym);
+        b.type = "button";
+        b.setAttribute("aria-label", `${label}: ${laneData.name}`);
+        b.addEventListener("click", () => row.scrollBy({ left: dir * row.clientWidth * 0.85 }));
+        tools.append(b);
+      }
+    }
+
     return section;
   }
 
   function renderPage() {
+    resetObserver();
     const page = data.pages[current];
     main.replaceChildren(...page.lanes.map(lane));
   }
@@ -285,28 +381,48 @@
     if (!failed.length && !backup.length) body.append(el("p", null, "Toate sursele funcționează normal."));
   }
 
+  // Show a new batch: hide everything seen so far and redraw.
+  function showNew(next) {
+    const first = !data;
+    data = next;
+    pending = null;
+    freshBtn.hidden = true;
+    startVisit();
+    if (first) {
+      const wanted = location.hash.slice(1) || store.get(TAB_KEY, "");
+      const found = data.pages.findIndex((p) => slug(p.name) === wanted);
+      current = found >= 0 ? found : 0;
+    }
+    current = Math.min(current, data.pages.length - 1);
+    renderTabs();
+    renderPage();
+    renderStatus();
+    renderUpdated();
+  }
+
+  freshBtn.addEventListener("click", () => {
+    saveNow();
+    showNew(pending || data);
+    window.scrollTo({ top: 0 });
+  });
+
   // ---------------------------------------------------------------- data
 
-  async function load() {
+  // newVisit: redraw right away. Otherwise just offer the new headlines,
+  // so nothing moves while you're reading.
+  async function load(newVisit) {
     lastFetch = Date.now();
     try {
       const res = await fetch(`data.json?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(res.status);
-      const fresh = await res.json();
-      const changed = !data || fresh.generated !== data.generated;
-      data = fresh;
-      if (changed) {
-        if (!tabsEl.children.length) {
-          const wanted = location.hash.slice(1) || store.get(TAB_KEY, "");
-          const found = data.pages.findIndex((p) => slug(p.name) === wanted);
-          current = found >= 0 ? found : 0;
-        }
-        current = Math.min(current, data.pages.length - 1);
-        renderTabs();
-        renderPage();
-        renderStatus();
+      const next = await res.json();
+      if (!data || newVisit) {
+        saveNow();
+        showNew(next);
+      } else if (next.generated !== data.generated) {
+        pending = next;
+        freshBtn.hidden = false;
       }
-      renderUpdated();
     } catch {
       if (!data) {
         main.replaceChildren(el("p", "notice", "Titlurile nu s-au putut încărca. Verifică conexiunea la internet și reîncarcă pagina."));
@@ -315,11 +431,12 @@
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && Date.now() - lastFetch > 5 * 60000) load();
+    if (document.visibilityState === "hidden") saveNow();
+    else if (Date.now() - lastFetch > NEW_VISIT_AFTER_MS) load(true);
   });
   setInterval(() => {
     renderUpdated();
-    if (document.visibilityState === "visible" && Date.now() - lastFetch > 10 * 60000) load();
+    if (document.visibilityState === "visible" && Date.now() - lastFetch > 10 * 60000) load(false);
   }, 60000);
   window.addEventListener("hashchange", () => {
     if (!data) return;
@@ -327,7 +444,7 @@
     if (i >= 0 && i !== current) selectPage(i, false);
   });
 
-  load();
+  load(true);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
