@@ -12,7 +12,14 @@
   const main = $("main");
   const tabsEl = $("tabs");
   const updatedEl = $("updated");
-  const freshBtn = $("fresh");
+  // Created here if missing, so an older cached index.html can't break the page
+  const freshBtn = $("fresh") || (() => {
+    const b = document.createElement("button");
+    b.id = "fresh"; b.className = "fresh"; b.type = "button"; b.hidden = true;
+    b.textContent = "Titluri noi";
+    updatedEl.before(b);
+    return b;
+  })();
 
   let data = null;
   let pending = null;
