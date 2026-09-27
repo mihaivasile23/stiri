@@ -1,0 +1,54 @@
+name: Update news
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes
+    - cron: "7 4 * * 1"      # Mondays: also keeps the schedule alive (see below)
+  push:
+    branches: [main]          # rebuild right away when you edit settings.yml
+  workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python build.py
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # GitHub pauses scheduled jobs in public repositories after 60 days
+  # without activity. Re-enabling the workflow once a week resets that clock.
+  keepalive:
+    if: github.event.schedule == '7 4 * * 1'
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
