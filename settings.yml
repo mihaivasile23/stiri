@@ -1,0 +1,194 @@
+# =====================================================================
+#  ȘTIRI — settings
+#  This is the only file you need to edit. Save it on GitHub and the
+#  site rebuilds itself within a couple of minutes.
+#
+#  HOW TO ADD A SOURCE: copy an existing block of three lines, e.g.
+#
+#          - name: BBC News
+#            feed: https://feeds.bbci.co.uk/news/rss.xml
+#            site: bbc.com
+#
+#  paste it under the lane you want, and change the values.
+#    name  = what appears on the card
+#    feed  = the site's RSS address (optional)
+#    site  = the site's domain, used as a backup: if the feed is missing
+#            or broken, headlines come from a Google News search of that
+#            site instead. You can use ONLY `site` for sites with no feed.
+#
+#  HOW TO ADD A SEARCH: under `searches:` add a line in quotes. Same
+#  syntax as Google: OR, "exact phrase", -excluded.
+#
+#  Indentation (the spaces at the start of lines) matters. Keep new
+#  lines lined up exactly like their neighbours. Use spaces, never Tab.
+#
+#  OPTIONAL LANE SETTINGS
+#    max_age:   how far back to look: 24h, 48h, 7d ...
+#    per_source: max headlines from any one outlet (keeps rows varied)
+#    max_items: max headlines in the lane
+#    include:   keep only headlines containing one of these words
+#    exclude:   drop headlines containing any of these words
+#    exclude_sources: drop these outlets (useful in search lanes)
+#      Words match the start of a word, and ignore diacritics and case:
+#      "sindicat" matches Sindicatul, sindicatele; "grev" matches grevă.
+#    Lists are written in square brackets, for example:
+#          exclude: [horoscop, "Liga 1"]
+#          exclude_sources: [Antena 3, Digi24]
+# =====================================================================
+
+defaults:
+  max_age: 24h
+  per_source: 4
+  max_items: 40
+
+pages:
+
+  # ---------------------------------------------------------------
+  - name: International
+    language: en
+    lanes:
+
+      - name: Mainstream
+        max_age: 24h
+        sources:
+          - name: The Guardian
+            feed: https://www.theguardian.com/uk/rss
+            site: theguardian.com
+          - name: The New York Times
+            feed: https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
+            site: nytimes.com
+          - name: The Washington Post
+            feed: https://feeds.washingtonpost.com/rss/world
+            site: washingtonpost.com
+          - name: The Boston Globe
+            feed: https://www.bostonglobe.com/arc/outboundfeeds/rss/?outputType=xml
+            site: bostonglobe.com
+          - name: Politico
+            feed: https://rss.politico.com/politics-news.xml
+            site: politico.com
+          - name: BBC News
+            feed: https://feeds.bbci.co.uk/news/rss.xml
+            site: bbc.com
+          - name: Al Jazeera
+            feed: https://www.aljazeera.com/xml/rss/all.xml
+            site: aljazeera.com
+          - name: El País
+            feed: https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada
+            site: english.elpais.com
+          - name: Le Monde
+            feed: https://www.lemonde.fr/en/rss/une.xml
+            site: lemonde.fr/en
+
+      - name: Progressive
+        max_age: 7d
+        sources:
+          - name: Zeteo
+            feed: https://zeteo.com/feed
+            site: zeteo.com
+          - name: Drop Site
+            feed: https://www.dropsitenews.com/feed
+            site: dropsitenews.com
+          - name: The Intercept
+            feed: https://theintercept.com/feed/?lang=en
+            site: theintercept.com
+          - name: Jacobin
+            feed: https://jacobin.com/feed/
+            site: jacobin.com
+
+      - name: Economics
+        max_age: 24h
+        per_source: 8
+        sources:
+          - name: Financial Times
+            feed: https://www.ft.com/rss/home
+            site: ft.com
+          - name: The Wall Street Journal
+            feed: https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness
+            site: wsj.com
+
+  # ---------------------------------------------------------------
+  - name: România
+    language: ro
+    lanes:
+
+      - name: Principalele știri
+        max_age: 24h
+        sources:
+          - name: HotNews
+            feed: https://hotnews.ro/feed
+            site: hotnews.ro
+          - name: G4Media
+            feed: https://www.g4media.ro/feed
+            site: g4media.ro
+          - name: Libertatea
+            feed: https://www.libertatea.ro/rss
+            site: libertatea.ro
+          - name: Adevărul
+            feed: https://adevarul.ro/rss
+            site: adevarul.ro
+
+      - name: Presă independentă
+        max_age: 7d
+        sources:
+          - name: Press Hub
+            feed: https://presshub.ro/feed/
+            site: presshub.ro
+          - name: PressOne
+            feed: https://pressone.ro/feed
+            site: pressone.ro
+          - name: Recorder
+            site: recorder.ro
+          - name: Dela0
+            feed: https://www.dela0.ro/feed/
+            site: dela0.ro
+          - name: Scena9
+            feed: https://www.scena9.ro/rss
+            site: scena9.ro
+
+      - name: Economie
+        max_age: 24h
+        sources:
+          - name: Economedia
+            feed: https://economedia.ro/feed
+            site: economedia.ro
+          - name: Ziarul Financiar
+            feed: https://www.zf.ro/rss
+            site: zf.ro
+          - name: Profit.ro
+            feed: https://www.profit.ro/rss
+            site: profit.ro
+
+      - name: Sport
+        max_age: 24h
+        sources:
+          - name: GSP
+            feed: https://www.gsp.ro/rss.xml
+            site: gsp.ro
+          - name: Golazo
+            feed: https://www.golazo.ro/rss
+            site: golazo.ro
+          - name: iAMsport
+            feed: https://iamsport.ro/feed
+            site: iamsport.ro
+
+      - name: Sindicate și piața muncii
+        max_age: 7d
+        per_source: 3
+        searches:
+          - 'sindicat OR sindicate OR grevă OR "protest angajați"'
+          - '"concedieri colective" OR disponibilizări OR concedieri'
+          - '"piața muncii" OR "salariul minim" OR "Codul muncii" OR șomaj'
+
+      - name: Educație
+        max_age: 7d
+        per_source: 5
+        sources:
+          - name: Școala9
+            feed: https://www.scoala9.ro/rss
+            site: scoala9.ro
+          - name: Edupedu
+            feed: https://www.edupedu.ro/feed/
+            site: edupedu.ro
+        searches:
+          - '"Ministerul Educației" OR bacalaureat OR "evaluarea națională"'
+          - 'profesori OR "legea educației"'
