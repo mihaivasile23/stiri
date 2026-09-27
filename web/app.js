@@ -185,6 +185,7 @@
     a.target = "_blank";
     a.rel = "noopener";
     if (revealed || has(readMap, item.id)) a.classList.add("is-read");
+    if (has(seenMap, item.id)) a.classList.add("is-seen");
 
     const fig = el("figure");
     const img = safeUrl(item.image);
@@ -203,7 +204,14 @@
 
     const body = el("div", "card-body");
     const meta = el("div", "meta");
-    meta.append(el("span", "source", item.source));
+    const src = el("span", "source");
+    if (!revealed) {
+      const dot = el("span", "dot");
+      dot.setAttribute("aria-hidden", "true");
+      src.append(dot);
+    }
+    src.append(document.createTextNode(item.source));
+    meta.append(src);
     if (item.time) {
       const d = new Date(item.time);
       const t = el("time", "time", sinceShort(d));
@@ -219,6 +227,7 @@
       if (has(seenMap, item.id)) return;
       seenMap[item.id] = Date.now();
       saveSoon();
+      a.classList.add("is-seen");
       if (!revealed) { state.fresh -= 1; state.update(); }
     };
     const open = () => {
